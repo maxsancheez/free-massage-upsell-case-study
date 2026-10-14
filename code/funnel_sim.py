@@ -8,84 +8,118 @@ off and see how much of the result it carries. All numbers are ASSUMPTIONS
 chosen to be plausible and loosely anchored to the studies cited in the
 README; they are not measured for any real business. Change them.
 
-Standard library only.  Run:  python3 funnel_sim.py
+Two presets:
+  massage      free 30-min massage, paused halfway with a paid upgrade (the reel)
+  dog-daycare  free half-day trial, midday photo + "make it a full day?" text
+
+Standard library only.  Run:
+  python3 funnel_sim.py
+  python3 funnel_sim.py --preset dog-daycare
 """
 
 import random
-import statistics
+import sys
 
-# ---------------------------------------------------------------- business
-RATE_PER_HOUR = 120.0        # full price, 60-minute massage
-CONSUMABLES_PER_SESSION = 8.0  # oil, linen, laundry
-INTRO_SLOTS = 40             # intro sessions you are willing to give away
+PRESETS = {
+    "massage": {
+        "unit": "hands-on h",
+        "full_price": 120.0,        # one full 60-minute massage
+        "consumables": 8.0,         # oil, linen, laundry per session
+        "intro_slots": 40,          # intro sessions you are willing to give away
+        "visits_per_month": 1,      # a regular comes about monthly
+        # "deal" = came mainly for the price; "value" = wanted it anyway
+        "client_types": {
+            "deal":  {"rebook": 0.10, "retain": 0.55},
+            "value": {"rebook": 0.40, "retain": 0.80},
+        },
+        # chance of paying to continue when asked at the pause
+        "extend_base": {"deal": 0.20, "value": 0.40},
+        "psych": {
+            # adverse selection: share of deal-seekers by intro price tier
+            "deal_share": {"free": 0.65, "discount": 0.45, "full": 0.25},
+            # reciprocity: a gift raises the odds of a first paid rebook
+            "reciprocity": {"free": 1.25, "discount": 1.10, "full": 1.00},
+            # hot state + endowment + interruption at the pause
+            "hot_state_extend": 1.50,
+            # persuasion knowledge / reactance on later rebooking
+            "reactance_decliners": 0.60,
+            "reactance_accepters": 0.90,
+            # zero-price anchor: free makes full price feel steep later
+            "zero_anchor_retain": {"free": 0.92, "discount": 0.97, "full": 1.00},
+        },
+        # name: (price tier, share of a full unit given as intro, intro price, pitch?)
+        "strategies": {
+            "A. Free 30 + pause pitch (reel)": ("free", 0.5, 0.0, True),
+            "B. Free 30, offer after":         ("free", 0.5, 0.0, False),
+            "C. $49 intro 60 min":             ("discount", 1.0, 49.0, False),
+            "D. Full price + guarantee":       ("full", 1.0, 120.0, False),
+        },
+        "units_per_session": 1.0,   # hours per full session
+    },
+    "dog-daycare": {
+        "unit": "dog-days",
+        "full_price": 55.0,         # one full day of daycare
+        "consumables": 6.0,         # treats, cleaning, extra staff time
+        "intro_slots": 40,
+        "visits_per_month": 6,      # regulars average ~1.5 days a week
+        "client_types": {
+            # dogs build routines and friendships, so retention is higher
+            "deal":  {"rebook": 0.12, "retain": 0.65},
+            "value": {"rebook": 0.45, "retain": 0.85},
+        },
+        "extend_base": {"deal": 0.20, "value": 0.45},
+        "psych": {
+            "deal_share": {"free": 0.60, "discount": 0.40, "full": 0.25},
+            "reciprocity": {"free": 1.20, "discount": 1.10, "full": 1.00},
+            # the "hot state" is a photo of a happy dog sent to the owner
+            "hot_state_extend": 1.40,
+            # a text to an owner at work is easy to ignore, so milder backlash
+            "reactance_decliners": 0.85,
+            "reactance_accepters": 0.97,
+            "zero_anchor_retain": {"free": 0.94, "discount": 0.98, "full": 1.00},
+        },
+        "strategies": {
+            "A. Free half-day + photo upsell": ("free", 0.5, 0.0, True),
+            "B. Free half-day, offer pickup":  ("free", 0.5, 0.0, False),
+            "C. $25 assessment day (credit)":  ("discount", 1.0, 25.0, False),
+            "D. Full price first day":         ("full", 1.0, 55.0, False),
+        },
+        "units_per_session": 1.0,   # one day per visit
+    },
+}
+
 MONTHS = 12
 
-# ------------------------------------------------------- two kinds of client
-# "deal" = shows up mainly for the price; "value" = wanted a massage anyway.
-CLIENT_TYPES = {
-    #           first full-price rebook | monthly retention after that
-    "deal":  {"rebook": 0.10, "retain": 0.55},
-    "value": {"rebook": 0.40, "retain": 0.80},
-}
 
-# Chance of agreeing to pay for the rest of the session when paused mid-way.
-EXTEND_BASE = {"deal": 0.20, "value": 0.40}
-
-# ------------------------------------------------------- psychology levers
-# 1 = effect off.  See README "Deep dive" for the evidence behind each.
-PSYCH = {
-    # Adverse selection: share of the intro cohort who are deal-seekers,
-    # by price of the intro offer (free attracts the most).
-    "deal_share": {"free": 0.65, "discount": 0.45, "full": 0.25},
-    # Reciprocity: a gift raises the odds of a first paid rebook.
-    "reciprocity": {"free": 1.25, "discount": 1.10, "full": 1.00},
-    # Hot state + endowment + interruption: being relaxed, undressed and
-    # mid-experience makes "continue?" much easier to say yes to.
-    "hot_state_extend": 1.50,
-    # Persuasion knowledge / reactance: a pitch on the table can feel like a
-    # tactic. Multiplier on later rebooking for people who said no...
-    "reactance_decliners": 0.60,
-    # ...and a smaller hit for people who said yes but felt pushed.
-    "reactance_accepters": 0.90,
-    # Zero-price anchor: a free first session makes $120 feel steep later.
-    "zero_anchor_retain": {"free": 0.92, "discount": 0.97, "full": 1.00},
-}
-
-STRATEGIES = {
-    # name: (intro price tier, intro minutes, intro price $, mid-session pitch?)
-    "A. Free 30 + pause pitch (reel)": ("free", 30, 0.0, True),
-    "B. Free 30, offer after":         ("free", 30, 0.0, False),
-    "C. $49 intro 60 min":             ("discount", 60, 49.0, False),
-    "D. Full price + guarantee":       ("full", 60, 120.0, False),
-}
-
-
-def expected_cohort(tier, minutes, price, pitch, psych=PSYCH):
-    """Expected 12-month outcome for INTRO_SLOTS intro clients."""
+def expected_cohort(cfg, tier, intro_share, price, pitch, psych=None):
+    """Expected 12-month outcome for one intro cohort."""
+    psych = psych or cfg["psych"]
+    full, slots, visits = cfg["full_price"], cfg["intro_slots"], cfg["visits_per_month"]
+    unit = cfg["units_per_session"]
     deal_share = psych["deal_share"][tier]
-    out = {"revenue": 0.0, "hours": 0.0, "free_hours": 0.0,
+    out = {"revenue": 0.0, "units": 0.0, "free_units": 0.0,
            "regulars_m6": 0.0, "costs": 0.0, "extended": 0.0}
 
     for ctype, share in (("deal", deal_share), ("value", 1 - deal_share)):
-        n = INTRO_SLOTS * share
-        p = CLIENT_TYPES[ctype]
+        n = slots * share
+        p = cfg["client_types"][ctype]
 
         # intro session
         out["revenue"] += n * price
-        out["hours"] += n * minutes / 60
+        out["units"] += n * intro_share * unit
         if price == 0:
-            out["free_hours"] += n * minutes / 60
-        out["costs"] += n * CONSUMABLES_PER_SESSION
+            out["free_units"] += n * intro_share * unit
+        out["costs"] += n * cfg["consumables"]
 
         rebook = p["rebook"] * psych["reciprocity"][tier]
         retain = min(p["retain"] * psych["zero_anchor_retain"][tier], 0.99)
 
         if pitch:
-            p_ext = min(EXTEND_BASE[ctype] * psych["hot_state_extend"], 0.95)
-            ext_hours = (60 - minutes) / 60
+            p_ext = min(cfg["extend_base"][ctype] * psych["hot_state_extend"], 0.95)
+            rest = 1 - intro_share
             out["extended"] += n * p_ext
-            out["revenue"] += n * p_ext * ext_hours * RATE_PER_HOUR
-            out["hours"] += n * p_ext * ext_hours
+            out["revenue"] += n * p_ext * rest * full
+            out["units"] += n * p_ext * rest * unit
             rebook_eff = (p_ext * rebook * psych["reactance_accepters"]
                           + (1 - p_ext) * rebook * psych["reactance_decliners"])
         else:
@@ -94,104 +128,114 @@ def expected_cohort(tier, minutes, price, pitch, psych=PSYCH):
         # paying regulars: rebook once, then monthly visits with retention
         active = n * min(rebook_eff, 0.99)
         for month in range(1, MONTHS):
-            out["revenue"] += active * RATE_PER_HOUR
-            out["hours"] += active
-            out["costs"] += active * CONSUMABLES_PER_SESSION
+            out["revenue"] += active * visits * full
+            out["units"] += active * visits * unit
+            out["costs"] += active * visits * cfg["consumables"]
             if month == 6:
                 out["regulars_m6"] += active
             active *= retain
 
     out["profit"] = out["revenue"] - out["costs"]
-    out["rev_per_hour"] = out["revenue"] / out["hours"]
+    out["rev_per_unit"] = out["revenue"] / out["units"]
     return out
 
 
-def simulate_once(tier, minutes, price, pitch, rng, psych=PSYCH):
+def simulate_once(cfg, tier, intro_share, price, pitch, rng):
     """One random draw of the same funnel (for spread, not just the mean)."""
+    psych, full = cfg["psych"], cfg["full_price"]
     revenue = 0.0
-    for _ in range(INTRO_SLOTS):
+    for _ in range(cfg["intro_slots"]):
         ctype = "deal" if rng.random() < psych["deal_share"][tier] else "value"
-        p = CLIENT_TYPES[ctype]
+        p = cfg["client_types"][ctype]
         revenue += price
         rebook = p["rebook"] * psych["reciprocity"][tier]
         retain = min(p["retain"] * psych["zero_anchor_retain"][tier], 0.99)
         if pitch:
-            p_ext = min(EXTEND_BASE[ctype] * psych["hot_state_extend"], 0.95)
+            p_ext = min(cfg["extend_base"][ctype] * psych["hot_state_extend"], 0.95)
             if rng.random() < p_ext:
-                revenue += (60 - minutes) / 60 * RATE_PER_HOUR
+                revenue += (1 - intro_share) * full
                 rebook *= psych["reactance_accepters"]
             else:
                 rebook *= psych["reactance_decliners"]
         if rng.random() < rebook:
             for _month in range(1, MONTHS):
-                revenue += RATE_PER_HOUR
+                revenue += cfg["visits_per_month"] * full
                 if rng.random() > retain:
                     break
     return revenue
 
 
-def with_lever_off(name):
-    """Copy of PSYCH with one lever neutralised (set to 1 / no effect)."""
-    psych = {k: (dict(v) if isinstance(v, dict) else v) for k, v in PSYCH.items()}
+def with_lever_off(psych, name):
+    """Copy of psych with one lever neutralised (set to 1 / no effect)."""
+    out = {k: (dict(v) if isinstance(v, dict) else v) for k, v in psych.items()}
     if name == "deal_share":
-        psych[name] = {t: PSYCH[name]["full"] for t in PSYCH[name]}
-    elif isinstance(psych[name], dict):
-        psych[name] = {t: 1.0 for t in psych[name]}
+        out[name] = {t: psych[name]["full"] for t in psych[name]}
+    elif isinstance(out[name], dict):
+        out[name] = {t: 1.0 for t in out[name]}
     else:
-        psych[name] = 1.0
-    return psych
+        out[name] = 1.0
+    return out
 
 
 def main():
-    print(f"Cohort: {INTRO_SLOTS} intro clients, {MONTHS}-month horizon, "
-          f"${RATE_PER_HOUR:.0f}/hr full price\n")
-    hdr = (f"{'strategy':34}{'12-mo rev':>10}{'profit*':>9}{'hands-on h':>11}"
-           f"{'free h':>8}{'$/hour':>8}{'regulars@m6':>12}{'extended':>9}")
+    preset = "massage"
+    if "--preset" in sys.argv:
+        preset = sys.argv[sys.argv.index("--preset") + 1]
+    if preset not in PRESETS:
+        sys.exit(f"unknown preset {preset!r}; choose from {', '.join(PRESETS)}")
+    cfg = PRESETS[preset]
+    strategies = cfg["strategies"]
+    names = list(strategies)
+
+    print(f"Preset: {preset}. Cohort: {cfg['intro_slots']} intro clients, {MONTHS}-month "
+          f"horizon, ${cfg['full_price']:.0f} full price\n")
+    unit = cfg["unit"]
+    hdr = (f"{'strategy':34}{'12-mo rev':>10}{'profit*':>9}{unit:>11}"
+           f"{'free':>8}{'$/unit':>8}{'regulars@m6':>12}{'extended':>9}")
     print(hdr)
     print("-" * len(hdr))
     results = {}
-    for name, args in STRATEGIES.items():
-        r = expected_cohort(*args)
+    for name, args in strategies.items():
+        r = expected_cohort(cfg, *args)
         results[name] = r
         print(f"{name:34}{r['revenue']:>10,.0f}{r['profit']:>9,.0f}"
-              f"{r['hours']:>11.0f}{r['free_hours']:>8.0f}{r['rev_per_hour']:>8.0f}"
+              f"{r['units']:>11.0f}{r['free_units']:>8.0f}{r['rev_per_unit']:>8.0f}"
               f"{r['regulars_m6']:>12.1f}{r['extended']:>9.1f}")
-    print("* profit = revenue minus consumables; therapist time not costed.\n")
+    print("* profit = revenue minus consumables; staff time not costed.\n")
 
     # Same cohort size is unfair to "free": free fills slots far more easily.
-    # So: how many intro clients would each strategy need to match D's
-    # regulars at month 6?
-    target = results["D. Full price + guarantee"]["regulars_m6"]
+    target = results[names[3]]["regulars_m6"]
     print(f"Intro clients needed to end month 6 with {target:.1f} regulars "
           f"(D's result):")
     for name, r in results.items():
-        need = INTRO_SLOTS * target / r["regulars_m6"]
+        need = cfg["intro_slots"] * target / r["regulars_m6"]
         print(f"  {name:34} {need:>5.0f}")
     print()
 
     print("Spread for 1,000 simulated cohorts (12-month revenue, seed 7):")
     rng = random.Random(7)
-    for name, args in STRATEGIES.items():
-        draws = sorted(simulate_once(*args, rng) for _ in range(1000))
+    for name, args in strategies.items():
+        draws = sorted(simulate_once(cfg, *args, rng) for _ in range(1000))
         p10, p50, p90 = draws[100], draws[500], draws[900]
         print(f"  {name:34} P10 {p10:>7,.0f}   median {p50:>7,.0f}   P90 {p90:>7,.0f}")
 
-    print("\nWhich psychology carries strategy A? (revenue if one lever is off)")
-    base = results["A. Free 30 + pause pitch (reel)"]["revenue"]
-    args = STRATEGIES["A. Free 30 + pause pitch (reel)"]
+    a_name, b_name = names[0], names[1]
+    print(f"\nWhich psychology carries strategy A? (revenue if one lever is off)")
+    base = results[a_name]["revenue"]
     rows = []
-    for lever in PSYCH:
-        r = expected_cohort(*args, psych=with_lever_off(lever))["revenue"]
+    for lever in cfg["psych"]:
+        r = expected_cohort(cfg, *strategies[a_name],
+                            psych=with_lever_off(cfg["psych"], lever))["revenue"]
         rows.append((r - base, lever, r))
     for delta, lever, r in sorted(rows, key=lambda x: -abs(x[0])):
         print(f"  {lever:22} off -> {r:>7,.0f}  ({delta:+,.0f})")
 
     print("\nBreak-even: how mild must reactance be for A to beat B?")
-    b_rev = results["B. Free 30, offer after"]["revenue"]
+    b_rev = results[b_name]["revenue"]
     for dec in (0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0):
-        psych = dict(PSYCH)
+        psych = dict(cfg["psych"])
         psych["reactance_decliners"] = dec
-        a = expected_cohort(*args, psych=psych)["revenue"]
+        a = expected_cohort(cfg, *strategies[a_name], psych=psych)["revenue"]
         flag = "A wins" if a > b_rev else "B wins"
         print(f"  decliners keep {dec:.0%} of rebook intent -> A {a:>7,.0f} "
               f"vs B {b_rev:>7,.0f}  {flag}")

@@ -80,7 +80,7 @@ There is also a **peak-end** cost. People judge an experience heavily by its bes
 This is where the industry commenters were right and the reel was silent.
 
 - **Datta, Foubert and van Heerde** (16,512 customers of a European digital-TV provider): customers acquired through free trials had **59% lower** lifetime value than regular customers. Reporting on the paper said they stayed about **one-third** as long [6].
-- **Dholakia's Groupon surveys** (Rice University): in the 2011 study of 324 businesses, **80%** of deal users were new customers, but only **19.9%** came back to pay full price, and **26.6%** of businesses lost money on the promotion [7]. In the 2010 study, businesses that sold more than 1,000 deals were less likely to profit, because deal users crowded out regulars who paid full price.
+- **Dholakia's Groupon surveys** (Rice University): in the 2011 study of 324 businesses, **80%** of deal users were new customers, but only **19.9%** came back to pay full price, and **26.6%** of businesses lost money on the promotion [7]. In the 2010 study, businesses that sold more than 1,000 deals were less likely to profit, because deal users crowded out regulars who paid full price. One point in the reel's favour: in the 2011 survey, more than 70% of health, services and special-event businesses (the category massage falls in) made money on their deal, far more than restaurants (43.6%). Low marginal cost per session helps. The problem is the low return rate, not that the first visit loses money.
 - **Byers, Mitzenmacher and Zervas**: after merchants ran Groupon deals, their Yelp ratings dropped on average. The likely explanation is a poorer fit between merchant and customer, not worse service [10]. So "free sessions = great reviews" is not a safe assumption.
 
 A free offer doesn't just pull in more people. It pulls in *different* people. Price is a filter, and "free" removes it.
@@ -124,9 +124,10 @@ How to read it:
 
 ```bash
 python3 code/funnel_sim.py
+python3 code/funnel_sim.py --preset dog-daycare
 ```
 
-Change `PSYCH`, `CLIENT_TYPES` and `RATE_PER_HOUR` to match your own practice. Full output and parameter notes are in [`code/README.md`](code/README.md).
+Each preset lives in the `PRESETS` dict at the top of the file. Copy one and change the price, visit frequency, client types and psychology levers to match your own business. Full output and parameter notes are in [`code/README.md`](code/README.md).
 
 If you want the benefits of the free session without the downsides:
 
@@ -136,6 +137,52 @@ If you want the benefits of the free session without the downsides:
 4. **Cap the free slots.** Set a weekly limit (for example, 4 free slots) so free hours never crowd out paying clients. Dholakia found deals that oversold were the ones that lost money [7].
 5. **Measure the one unknown number.** Track whether people who decline an extension rebook less than people who were never asked. That single rate tells you whether the pause pitch helps or hurts.
 
+### The dog-business version
+
+Dog PPL, the members' club for dogs that opened in LA, shows the *filter* half of this psychology without using "free." Membership is about $120 per dog per month, and every dog must pass an in-person behavior assessment first [14][15]. That one step screens out bad fits, makes membership feel exclusive, and gets a small commitment up front, which is exactly the fix for the adverse-selection problem above.
+
+The same effects carry over to dogs, with one difference: owners are emotionally invested, and a dog's happiness is easy to see. A photo or 10-second clip of the dog playing is the "hot state," and it reaches the owner wherever they are.
+
+| Effect | Massage version | Dog version |
+|---|---|---|
+| Hot state | Client relaxed on the table | Owner sees a midday photo of their dog having a great time |
+| Pause and continue | "Continue for $X?" at halfway | Free half-day trial, price explained at drop-off. Midday text: "Milo's made two friends. Make it a full day for $27?" |
+| Endowment and loss | The session already feels like yours | The dog's friendships feel like yours: "Milo's playgroup meets Tuesdays and Thursdays." |
+| Reciprocity | Free massage | Free nail trim, photo shoot or training mini-lesson at a pop-up |
+| Adverse selection | Free attracts bargain hunters | Free attracts people looking for free off-leash space. Charge a small assessment fee and credit it toward the first month. |
+| Peak-end | Don't end on a sales pitch | End on the dog: a tired, happy pup and a "report card" text with photos at pickup |
+
+**What the dog-daycare preset shows** (`--preset dog-daycare`, all values illustrative):
+
+```
+strategy                           12-mo rev  profit*   dog-days    free  $/unit regulars@m6 extended
+-----------------------------------------------------------------------------------------------------
+A. Free half-day + photo upsell       15,058   13,226        294      20      51         2.9     16.8
+B. Free half-day, offer pickup        15,902   13,927        309      20      51         3.1      0.0
+C. $25 assessment day (credit)        23,236   20,571        444       0      52         5.0      0.0
+D. Full price first day               28,051   24,991        510       0      55         6.1      0.0
+```
+
+- **For recurring businesses, the mid-visit upsell barely pays.** Finishing the day earns about $27. A regular is worth about 6 days a month. Even with a mild backlash (decliners keep 85% of their intent to return), the upsell loses to making the offer at pickup. It only breaks even if declining causes no backlash at all. The more of your revenue comes from repeat visits, the more you should protect rebooking instead of maximising the first visit.
+- **The paid assessment ($25, credited) is the sweet spot.** It builds about 60% more regulars than a free trial from the same number of intro dogs. It's the Dog PPL model in miniature.
+- **Selection still dominates.** Removing the deal-seeker effect raises strategy A's revenue by 60% (15,058 → 24,204).
+
+## Assumptions
+
+Every number in the model is a dial, not a measurement. Here's what each one is anchored to.
+
+| Parameter | Massage | Dog daycare | Anchored to |
+|---|---|---|---|
+| Full price | $120 / hour | $55 / day | Typical US urban prices; illustrative |
+| Regular visit frequency | 1 / month | 6 / month | Illustrative guess |
+| Deal-seeker share (free / discount / full) | 65% / 45% / 25% | 60% / 40% / 25% | Direction from [6][7]; levels are guesses |
+| First paid rebook (deal / value client) | 10% / 40% | 12% / 45% | ~20% full-price return for daily-deal users [7] |
+| Monthly retention (deal / value client) | 55% / 80% | 65% / 85% | Free-trial customers stay about a third as long [6]; levels are guesses |
+| Reciprocity boost (free) | ×1.25 | ×1.20 | Direction from [2]; size is a guess |
+| Hot-state boost to "continue?" | ×1.50 | ×1.40 | Direction from [3][4][5]; size is a guess |
+| Rebook kept by people who decline the upsell | 60% | 85% | Unmeasured. The key number to test [8] |
+| Retention after a free (zero-price) start | ×0.92 | ×0.94 | Direction from [1]; size is a guess |
+
 ## Takeaways
 
 - The reel's tactic stacks real effects: zero price, reciprocity, a hot state, endowment and interruption. That's why it *feels* like it should work.
@@ -143,6 +190,7 @@ If you want the benefits of the free session without the downsides:
 - The halfway "continue?" is the most persuasive moment. The reel's up-front disclosure is what keeps it from costing you trust.
 - A small price, or a free session offered to filtered people with the offer made afterwards, keeps most of the upside.
 - The deciding number (how much declining an extension lowers rebooking) is unmeasured. Test it before you scale.
+- The more a business runs on repeat visits (daycare, memberships), the less a first-visit upsell is worth compared with protecting the rebook.
 
 ## Open questions
 
@@ -153,19 +201,21 @@ If you want the benefits of the free session without the downsides:
 
 ## Sources
 
-1. [Shampanier, Mazar & Ariely (2007), "Zero as a Special Price: The True Value of Free Products," *Marketing Science* 26(6)](https://people.duke.edu/~dandan/webfiles/PapersPI/Zero%20as%20a%20Special%20Price.pdf): free changes choices far more than a one-cent price cut
-2. [Regan (1971), "Effects of a Favor and Liking on Compliance," *J. Experimental Social Psychology* 7(6)](https://en.wikipedia.org/wiki/Reciprocity_(social_psychology)): the Coke-and-raffle-tickets reciprocity study
-3. [Loewenstein (2005), "Hot-cold empathy gaps and medical decision making," *Health Psychology*](https://en.wikipedia.org/wiki/Hot-cold_empathy_gap): visceral states distort choices in the moment
-4. [Nelson & Meyvis (2008), "Interrupted Consumption: Disrupting Adaptation to Hedonic Experiences," *JMR* 45](https://interruptions.net/literature/Nelson-JConsumRes09.pdf): breaks make pleasant experiences, including massage chairs, more enjoyable (link is the 2009 follow-up on TV ads, which summarises the 2008 work)
-5. [Kahneman, Knetsch & Thaler (1990), "Experimental Tests of the Endowment Effect and the Coase Theorem," *JPE* 98(6)](https://web.mit.edu/curhan/www/docs/Articles/15341_Readings/Behavioral_Decision_Theory/Kahneman_et_al_1990_Experimental_tests.pdf): owners value things about twice as much as buyers
-6. [Datta, Foubert & van Heerde (2015), "The Challenge of Retaining Customers Acquired with Free Trials," *JMR* 52(2)](https://research.tilburguniversity.edu/en/publications/the-challenge-of-retaining-customers-acquired-with-free-trials/): 59% lower lifetime value for free-trial customers
-7. [Dholakia (2011), "How Businesses Fare With Daily Deals," Rice University](https://digitalwellbeing.org/downloads/Rice_Report_Groupon.pdf): 19.9% of deal users returned at full price; 26.6% of businesses lost money
-8. [Friestad & Wright (1994), "The Persuasion Knowledge Model," *J. Consumer Research* 21(1)](https://ideas.repec.org/a/oup/jconrs/v21y1994i1p1-31.html): people discount a seller once they spot the tactic
-9. [ABMP Code of Ethics for Massage Therapists](https://www.abmp.com/node/371): client consent, comfort and self-determination in the session
+1. [Shampanier, Mazar & Ariely (2007), "Zero as a Special Price: The True Value of Free Products," *Marketing Science* 26(6)](https://doi.org/10.1287/mksc.1060.0254): free changes choices far more than a one-cent price cut
+2. [Regan (1971), "Effects of a Favor and Liking on Compliance," *J. Experimental Social Psychology* 7(6)](https://doi.org/10.1016/0022-1031%2871%2990025-4): the Coke-and-raffle-tickets reciprocity study
+3. [Loewenstein (2005), "Hot-cold empathy gaps and medical decision making," *Health Psychology*](https://doi.org/10.1037/0278-6133.24.4.S49): visceral states distort choices in the moment
+4. [Nelson & Meyvis (2008), "Interrupted Consumption: Disrupting Adaptation to Hedonic Experiences," *JMR* 45](https://doi.org/10.1509/jmkr.45.6.654): breaks make pleasant experiences, including massage chairs, more enjoyable (follow-up on TV ads: [Nelson, Meyvis & Galak 2009](https://doi.org/10.1086/597220))
+5. [Kahneman, Knetsch & Thaler (1990), "Experimental Tests of the Endowment Effect and the Coase Theorem," *JPE* 98(6)](https://doi.org/10.1086/261737): owners value things about twice as much as buyers
+6. [Datta, Foubert & van Heerde (2015), "The Challenge of Retaining Customers Acquired with Free Trials," *JMR* 52(2)](https://doi.org/10.1509/jmr.12.0160): 59% lower lifetime value for free-trial customers
+7. [Dholakia (2011), "How Businesses Fare With Daily Deals," Rice University](https://digitalwellbeing.org/downloads/Rice_Report_Groupon.pdf) ([Rice press summary](https://www.sciencedaily.com/releases/2011/06/110614154548.htm)): 19.9% of deal users returned at full price; 26.6% of businesses lost money; health and services businesses did best
+8. [Friestad & Wright (1994), "The Persuasion Knowledge Model," *J. Consumer Research* 21(1)](https://doi.org/10.1086/209380): people discount a seller once they spot the tactic
+9. [ABMP Code of Ethics for Massage Therapists](https://seven.abmp.com/node/371): client consent, comfort and self-determination in the session
 10. [Byers, Mitzenmacher & Zervas (2012), "The Groupon Effect on Yelp Ratings: A Root Cause Analysis"](https://www.arxiv.org/pdf/1202.2369): ratings drop after daily deals, mainly due to customer fit
-11. [Kahneman, Fredrickson, Schreiber & Redelmeier (1993), "When More Pain Is Preferred to Less," *Psychological Science* 4](https://ius.uzh.ch/dam/jcr:5ae9adc9-61ec-4174-b37c-4b752f36c23b/Kahnemann%20et%20al.%20-%20When%20More%20Pain%20is%20Preferred%20to%20Less%20(1993).pdf): the peak-end rule
-12. [Beaman et al. (1983), "Fifteen years of foot-in-the-door research: A meta-analysis," *PSPB* 9](https://journals.sagepub.com/doi/10.1177/0146167283092002): the effect replicates but is weak
+11. [Kahneman, Fredrickson, Schreiber & Redelmeier (1993), "When More Pain Is Preferred to Less," *Psychological Science* 4](https://doi.org/10.1111/j.1467-9280.1993.tb00589.x): the peak-end rule
+12. [Beaman et al. (1983), "Fifteen years of foot-in-the-door research: A meta-analysis," *PSPB* 9](https://doi.org/10.1177/0146167283092002): the effect replicates but is weak
 13. [Massage Envy introductory pricing (franchise releases, 2011–12)](https://www.franchising.com/amp/news/20120111_massage_envy_spa_germantown_allows_first_time_gues.html): the industry's established version is a *discounted* intro ($49) leading to a membership ($59/mo), not a free one
+14. [The Hollywood Reporter on Dog PPL's members-only dog club](https://www.hollywoodreporter.com/lifestyle/lifestyle-news/members-only-dog-park-hollywood-pets-1236405496/): LA memberships from $120/month
+15. [InsideHook on Dog PPL's expansion to New York](https://www.insidehook.com/leisure/dog-ppl-opening-brooklyn-location-member-club/amp): $120 per dog per month in LA, $25 for each extra dog, behavior assessment required
 
 ---
 *Assumptions:* the model's parameters are illustrative and not fitted to any real practice. The reel says "upgrade halfway through" without saying to what, so the model assumes a 30-minute free session that can be extended to a paid 60 minutes. The reel was summarised in my own words from its audio and captions. No transcript is reproduced here.
