@@ -28,22 +28,29 @@ The reel is right that the mechanism works in the moment, and its insistence on 
 
 ## How it works
 
+**In-session loop**: built to get a "yes" in the moment.
+
 ```mermaid
 flowchart LR
-    A["Free offer"] -->|"zero-price effect"| B["Fills fast<br/>mostly bargain hunters"]
-    B --> C["Price explained<br/>up front, client relaxes"]
-    C --> D{"Pause:<br/>continue for $X?"}
-    D -->|"hot state + loss<br/>+ reciprocity"| E["Yes: pays<br/>for the rest"]
-    D -->|"no / feels sold to"| F["Leaves<br/>less likely to return"]
-    E --> G{"Rebooks at<br/>full price?"}
-    F --> G
-    G -->|"value seekers"| H["Regular"]
-    G -->|"deal seekers"| I["Waits for<br/>the next deal"]
-    style D fill:#f6d7c3,color:#111
-    style I fill:#e5e5e5,color:#111
+    A["Price told<br/>up front"] --> B["Client<br/>relaxes"]
+    B --> C{"Halfway:<br/>continue for $X?"}
+    C -->|"hot state, loss,<br/>reciprocity"| D["Yes: pays<br/>for the rest"]
+    C -->|"declines"| E["Finishes<br/>free half"]
+    style C fill:#f6d7c3,color:#111
 ```
 
-Two loops run at once. The **in-session loop** (relaxation → interruption → offer) is built to maximise the "yes" in the moment. The **selection loop** (who a free offer attracts → whether they ever pay full price) decides whether the business grows. The reel only talks about the first.
+**Selection loop**: decides whether the business grows.
+
+```mermaid
+flowchart LR
+    A["Free<br/>offer"] -->|"zero price"| B["Mostly<br/>bargain hunters"]
+    B --> C{"Rebook at<br/>full price?"}
+    C -->|"value seekers"| D["Regular"]
+    C -->|"deal seekers"| E["Waits for<br/>next deal"]
+    style E fill:#e5e5e5,color:#111
+```
+
+Both loops run at once. The reel only talks about the first one, and the second one decides whether the business grows.
 
 ## Deep dive
 
